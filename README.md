@@ -2,6 +2,12 @@
 
 A web app that scrapes RateMyProfessor data for **San Diego State University** and ranks professors by quality, difficulty, and a weighted composite score. Filter by department, sort by any metric, and find the best professors at SDSU.
 
+## Live app
+
+**→ [https://sdsu-rmp-rankings.onrender.com/](https://sdsu-rmp-rankings.onrender.com/)**
+
+The app is deployed on Render. On the free tier, the service may spin down after inactivity; the first load after that can take 30–60 seconds.
+
 ## Quick Start
 
 ```bash
