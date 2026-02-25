@@ -23,17 +23,11 @@ A full-stack web app that helps students find the best professors at San Diego S
 
 ## Build process
 
-- **Data first**: RateMyProfessor’s public GraphQL API is used instead of scraping HTML, so the pipeline is structured around their schema. Responses are normalized into a simple SQLite schema (professors, departments, stats) so the rest of the app doesn’t depend on the external API shape.
-- **Backend**: FastAPI routes for rankings (with sort/filter query params), departments, stats, and a schedule endpoint that takes course codes and returns best-rated professors. A background task checks cache age and re-scrapes when data is older than 7 days; manual refresh is also available via API.
-- **Scoring**: The composite “best overall” score is a weighted mix of quality (40%), would-take-again (35%), and inverse difficulty (25%), so high-rated, low-difficulty professors rank at the top.
-- **Frontend**: Built as a single page with tabbed sections (Rankings, Schedule Builder, Departments). Vanilla JS was chosen to keep dependencies minimal and to handle state and DOM updates explicitly. The UI calls the backend REST API and renders tables and filters from the JSON responses.
-- **Deployment**: One Render web service runs the FastAPI app, which serves both the API and the static frontend. Root directory is set to `backend` so Render runs `pip install` and `uvicorn` in the right place; the app mounts the frontend folder and serves `index.html` at `/`.
-
-## Highlights for recruiters
-
-- **Full-stack**: API design, database modeling, and frontend built from scratch (no React/Vue—vanilla JS for this project).
-- **Data pipeline**: Fetching and normalizing external API data, caching, and refresh logic.
-- **Deployed**: Live, public URL; one-click for hiring managers to see working software.
+- **Data**: RateMyProfessor’s GraphQL API (not HTML scraping); responses normalized into SQLite so the app isn’t tied to the external schema.
+- **Backend**: FastAPI routes for rankings (sort/filter params), departments, stats, and schedule-by-course-codes. Cache refreshes when older than 7 days (background task); manual refresh via API.
+- **Scoring**: Composite = 40% quality, 35% would-take-again, 25% inverse difficulty.
+- **Frontend**: Single page with tabs (Rankings, Schedule Builder, Departments). Vanilla JS, no framework; state and DOM updates by hand; fetches REST API and renders from JSON.
+- **Deployment**: One Render service; FastAPI serves the API and static frontend. Root dir `backend` for build/run; app mounts frontend and serves `index.html` at `/`.
 
 ## Run locally
 
