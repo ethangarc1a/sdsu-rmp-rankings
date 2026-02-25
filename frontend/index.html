@@ -193,6 +193,12 @@
         <p>Data from <a href="https://www.ratemyprofessors.com/school/877" target="_blank" rel="noopener">RateMyProfessor</a>. Not affiliated with SDSU or RateMyProfessor.</p>
     </footer>
 
+    <script>
+      // When not on localhost, use your Render backend URL so Vercel can call it
+      if (location.hostname !== "127.0.0.1" && location.hostname !== "localhost") {
+        window.API_BASE = "https://sdsu-rmp-rankings.onrender.com";
+      }
+    </script>
     <script src="/static/app.js"></script>
 </body>
 </html>

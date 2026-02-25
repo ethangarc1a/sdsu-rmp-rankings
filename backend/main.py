@@ -4,6 +4,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Query, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -45,6 +46,17 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="SDSU Professor Rankings", lifespan=lifespan)
+
+# Allow frontend on Vercel (or any origin) to call this API
+_origins = os.getenv("ALLOWED_ORIGINS", "*")
+_origin_list = [o.strip() for o in _origins.split(",") if o.strip()] if _origins != "*" else ["*"]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_origin_list,
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
 

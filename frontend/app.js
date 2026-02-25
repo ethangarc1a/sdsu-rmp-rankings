@@ -1,4 +1,4 @@
-const API = '';
+const API = (typeof window !== "undefined" && window.API_BASE) ? window.API_BASE : "";
 const PAGE_SIZE = 25;
 
 let allProfessors = [];
