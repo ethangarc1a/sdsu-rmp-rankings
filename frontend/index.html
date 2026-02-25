@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SDSU Professor Rankings</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav>
+        <div class="nav-inner">
+            <div class="nav-brand">
+                <span class="nav-logo">SDSU</span>
+                <span class="nav-title">Professor Rankings</span>
+            </div>
+            <div class="nav-right">
+                <span id="last-scraped" class="nav-meta"></span>
+                <button id="refresh-btn" class="btn-refresh-icon" onclick="refreshData()" title="Force re-scrape data">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <main>
+        <div id="loading-overlay" class="loading-overlay hidden">
+            <div class="loading-card">
+                <div class="spinner"></div>
+                <p id="loading-text" class="loading-text">Loading professor data...</p>
+                <p id="loading-progress" class="loading-sub"></p>
+            </div>
+        </div>
+
+        <section class="hero">
+            <h1>Find the best professors at <span class="hero-accent">San Diego State</span></h1>
+            <p class="hero-sub">Rankings powered by RateMyProfessor data across 5,000+ professors and every department.</p>
+        </section>
+
+        <div class="tab-switcher" id="tab-switcher">
+            <button class="tab-btn active" id="tab-btn-rankings" onclick="switchTab('rankings')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>
+                Rankings
+            </button>
+            <button class="tab-btn" id="tab-btn-schedule" onclick="switchTab('schedule')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                Schedule Builder
+            </button>
+            <button class="tab-btn" id="tab-btn-departments" onclick="switchTab('departments')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                Departments
+            </button>
+        </div>
+
+        <section id="stats-section" class="stats-section hidden">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                    </div>
+                    <div class="stat-value" id="stat-total">--</div>
+                    <div class="stat-label">Rated Professors</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    </div>
+                    <div class="stat-value" id="stat-avg-quality">--</div>
+                    <div class="stat-label">Average Quality</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                    </div>
+                    <div class="stat-value" id="stat-hardest-dept">--</div>
+                    <div class="stat-label" id="stat-hardest-label">Hardest Department</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                    </div>
+                    <div class="stat-value" id="stat-hardest-prof">--</div>
+                    <div class="stat-label" id="stat-hardest-prof-label">Hardest Professor</div>
+                </div>
+            </div>
+        </section>
+
+        <section id="controls-section" class="controls-section hidden">
+            <div class="controls-bar">
+                <div class="control-group search-group">
+                    <label for="search-input">Search</label>
+                    <div class="search-wrapper">
+                        <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        <input id="search-input" type="text" placeholder="Search by name..." oninput="applySearch()">
+                        <button id="search-clear" class="search-clear hidden" onclick="clearSearch()">&times;</button>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label for="dept-filter">Department</label>
+                    <select id="dept-filter" onchange="loadRankings()">
+                        <option value="">All Departments</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="sort-select">Sort by</label>
+                    <select id="sort-select" onchange="loadRankings()">
+                        <option value="weighted_score">Best Overall</option>
+                        <option value="avg_rating">Highest Rating</option>
+                        <option value="would_take_again_pct">Would Take Again</option>
+                        <option value="avg_difficulty">Most Difficult</option>
+                        <option value="num_ratings">Most Reviews</option>
+                        <option value="name">Name (A-Z)</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="min-ratings">Min Reviews</label>
+                    <select id="min-ratings" onchange="loadRankings()">
+                        <option value="0">Any</option>
+                        <option value="3">3+</option>
+                        <option value="5" selected>5+</option>
+                        <option value="10">10+</option>
+                        <option value="20">20+</option>
+                        <option value="50">50+</option>
+                    </select>
+                </div>
+                <button id="fav-toggle" class="btn-fav-toggle" onclick="toggleFavoritesFilter()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    <span id="fav-toggle-label">Favorites</span>
+                    <span id="fav-count" class="fav-count hidden">0</span>
+                </button>
+                <div class="control-spacer"></div>
+                <span id="results-count" class="results-count"></span>
+            </div>
+        </section>
+
+        <section id="table-section" class="table-section hidden">
+            <div class="table-card">
+                <div class="table-wrapper">
+                    <table id="rankings-table">
+                        <thead>
+                            <tr>
+                                <th class="col-rank">#</th>
+                                <th class="col-name">Professor</th>
+                                <th class="col-dept">Department</th>
+                                <th class="col-rating">Rating</th>
+                                <th class="col-difficulty">Difficulty</th>
+                                <th class="col-wta">Take Again</th>
+                                <th class="col-count">Reviews</th>
+                                <th class="col-score">Score</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rankings-body"></tbody>
+                    </table>
+                </div>
+                <div id="pagination" class="pagination hidden"></div>
+            </div>
+        </section>
+        <section id="schedule-section" class="schedule-section hidden">
+            <div class="schedule-card">
+                <div class="schedule-header">
+                    <h2>Schedule Builder</h2>
+                    <p class="schedule-desc">Enter your course codes and we'll find the best-rated professors for each class.</p>
+                </div>
+                <div class="schedule-input-row">
+                    <div class="schedule-input-wrapper">
+                        <svg class="schedule-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        <input id="schedule-input" type="text" placeholder="e.g. COMPE 375, CS 310, MATH 252" onkeydown="if(event.key==='Enter') submitSchedule()">
+                    </div>
+                    <button class="btn-find" onclick="submitSchedule()" id="schedule-submit-btn">
+                        Find Professors
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                    </button>
+                </div>
+                <div id="schedule-results" class="schedule-results"></div>
+            </div>
+        </section>
+        <section id="departments-section" class="departments-section hidden">
+            <div class="dept-controls">
+                <div class="search-wrapper">
+                    <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <input id="dept-search-input" type="text" placeholder="Search departments..." oninput="filterDepts()">
+                </div>
+                <span id="dept-count" class="results-count"></span>
+            </div>
+            <div id="dept-grid" class="dept-grid"></div>
+            <div id="dept-detail" class="dept-detail hidden"></div>
+        </section>
+    </main>
+
+    <footer>
+        <p>Data from <a href="https://www.ratemyprofessors.com/school/877" target="_blank" rel="noopener">RateMyProfessor</a>. Not affiliated with SDSU or RateMyProfessor.</p>
+    </footer>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
