@@ -1,0 +1,81 @@
+# Official SDSU bachelor program / department names (for matching RMP departments).
+# One name per line. Lines starting with # are ignored.
+# Source: SDSU catalog of Bachelor programs.
+Accountancy
+Administration, Rehabilitation and Postsecondary Education
+Aerospace Engineering
+Africana Studies
+American Indian Studies
+Anthropology
+Art and Design
+Arts and Letters
+Asian American Studies
+Asian Studies
+Astronomy
+Biology
+Brazilian Studies
+Business Administration
+Chemistry
+Chicana and Chicano Studies
+Child and Family Development
+Civil Engineering
+Classics
+Communication
+Comparative International Studies
+Comparative Literature
+Computer Engineering
+Computer Science
+Construction Engineering
+Construction Management
+Criminal Justice and Criminology
+Dance
+Earth and Environmental Sciences
+Economics
+Electrical Engineering
+English and Comparative Literature
+Environmental Engineering
+Environmental Studies
+Exercise and Nutritional Sciences
+Finance
+Geography
+Gerontology
+History
+Hospitality and Tourism Management
+Humanities
+International Business
+International Security and Conflict Resolution
+Jewish Studies
+Journalism and Media Studies
+Kinesiology
+Language, Culture, and Society
+Latin American Studies
+Lesbian, Gay, Bisexual, Transgender, Queer and Plus Studies
+Liberal Studies
+Linguistics and Asian/Middle Eastern Languages
+Management
+Management Information Systems
+Marketing
+Mathematics
+Mechanical Engineering
+Music
+Nursing
+Nutrition
+Philosophy
+Physics
+Political Science
+Psychology
+Public Administration
+Public Health
+Rhetoric and Writing Studies
+Social Science
+Social Work
+Sociology
+Spanish and Portuguese Languages and Literatures
+Speech, Language, and Hearing Sciences
+Statistics
+Study of Religion
+Sustainability
+Television, Film, and New Media
+Theatre Arts
+Urban Studies
+Women's, Gender, and Sexuality Studies

@@ -1,8 +1,55 @@
+import re
 import sqlite3
 import json
 import os
+from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Optional
+
+# --- Department normalization (merge duplicates; prefer official SDSU program names when they match) ---
+
+_OFFICIAL_SDSU_NAMES: Optional[dict[str, str]] = None  # normalized_key -> official display name
+
+
+def _normalize_department_key(name: str) -> str:
+    """Key for grouping duplicate department names (case-insensitive, normalize &/and/amp)."""
+    if not name or name == "Unknown":
+        return name or ""
+    s = name.lower().strip()
+    s = re.sub(r"\s+", " ", s)
+    s = s.replace(" amp ", " & ").replace(" and ", " & ")
+    return s
+
+
+def _get_official_sdsu_names() -> dict[str, str]:
+    """Load official SDSU bachelor program names: normalized_key -> display name."""
+    global _OFFICIAL_SDSU_NAMES
+    if _OFFICIAL_SDSU_NAMES is not None:
+        return _OFFICIAL_SDSU_NAMES
+    path = os.path.join(os.path.dirname(__file__), "sdsu_bachelor_programs.txt")
+    result: dict[str, str] = {}
+    if os.path.isfile(path):
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#"):
+                    key = _normalize_department_key(line)
+                    if key:
+                        result[key] = line
+    _OFFICIAL_SDSU_NAMES = result
+    return result
+
+
+def _pick_canonical_display(variants: list[str]) -> str:
+    """Pick one display name for a group of variants. Prefer official SDSU program name if any variant matches."""
+    if not variants:
+        return "Unknown"
+    official = _get_official_sdsu_names()
+    for v in variants:
+        key = _normalize_department_key(v)
+        if key in official:
+            return official[key]
+    return max(variants, key=lambda s: (" & " in s, len(s)))
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "sdsu_professors.db")
 CACHE_MAX_AGE_DAYS = 7
@@ -138,12 +185,19 @@ def get_professors(
     params: list = [min_ratings]
 
     if department:
-        query += " AND department = ?"
-        params.append(department)
+        raw_depts = _resolve_canonical_to_raw(conn, department)
+        if raw_depts:
+            placeholders = ",".join("?" * len(raw_depts))
+            query += f" AND department IN ({placeholders})"
+            params.extend(raw_depts)
+        else:
+            query += " AND department = ?"
+            params.append(department)
 
     query += f" ORDER BY {order}"
 
     rows = conn.execute(query, params).fetchall()
+    raw_to_canonical = _raw_to_canonical_map(conn)
     conn.close()
 
     return [
@@ -151,7 +205,7 @@ def get_professors(
             "rmp_id": r["rmp_id"],
             "first_name": r["first_name"],
             "last_name": r["last_name"],
-            "department": r["department"],
+            "department": raw_to_canonical.get(r["department"], r["department"]),
             "avg_rating": r["avg_rating"],
             "avg_difficulty": r["avg_difficulty"],
             "would_take_again_pct": r["would_take_again_pct"],
@@ -166,8 +220,6 @@ def get_professors(
 
 def get_professors_by_courses(course_codes: list[str]) -> dict[str, list[dict]]:
     """Return professors grouped by course code, ranked by weighted score."""
-    import re
-
     normalized = []
     for code in course_codes:
         clean = re.sub(r"\s+", "", code).upper()
@@ -178,6 +230,7 @@ def get_professors_by_courses(course_codes: list[str]) -> dict[str, list[dict]]:
         return {}
 
     conn = get_connection()
+    raw_to_canonical = _raw_to_canonical_map(conn)
     results: dict[str, list[dict]] = {}
 
     for code in normalized:
@@ -204,7 +257,7 @@ def get_professors_by_courses(course_codes: list[str]) -> dict[str, list[dict]]:
                 "rmp_id": r["rmp_id"],
                 "first_name": r["first_name"],
                 "last_name": r["last_name"],
-                "department": r["department"],
+                "department": raw_to_canonical.get(r["department"], r["department"]),
                 "avg_rating": r["avg_rating"],
                 "avg_difficulty": r["avg_difficulty"],
                 "would_take_again_pct": r["would_take_again_pct"],
@@ -220,38 +273,73 @@ def get_professors_by_courses(course_codes: list[str]) -> dict[str, list[dict]]:
     return results
 
 
+def _raw_to_canonical_map(conn) -> dict[str, str]:
+    """Build a map from raw department name to canonical display name."""
+    rows = conn.execute(
+        "SELECT DISTINCT department FROM professors WHERE department != 'Unknown'"
+    ).fetchall()
+    raw_list = [r["department"] for r in rows]
+    by_key: dict[str, list[str]] = defaultdict(list)
+    for raw in raw_list:
+        by_key[_normalize_department_key(raw)].append(raw)
+    return {raw: _pick_canonical_display(v) for v in by_key.values() for raw in v}
+
+
+def _resolve_canonical_to_raw(conn, canonical: str) -> list[str]:
+    """Return all raw department values that normalize to the same key as canonical."""
+    key = _normalize_department_key(canonical)
+    rows = conn.execute(
+        "SELECT DISTINCT department FROM professors WHERE department != 'Unknown'"
+    ).fetchall()
+    return [r["department"] for r in rows if _normalize_department_key(r["department"]) == key]
+
+
 def get_departments() -> list[str]:
     conn = get_connection()
     rows = conn.execute(
-        "SELECT DISTINCT department FROM professors WHERE department != 'Unknown' ORDER BY department"
+        "SELECT DISTINCT department FROM professors WHERE department != 'Unknown'"
     ).fetchall()
     conn.close()
-    return [r["department"] for r in rows]
+    raw_list = [r["department"] for r in rows]
+    by_key: dict[str, list[str]] = defaultdict(list)
+    for raw in raw_list:
+        by_key[_normalize_department_key(raw)].append(raw)
+    canonicals = [_pick_canonical_display(v) for v in by_key.values()]
+    return sorted(canonicals)
 
 
 def get_department_stats() -> list[dict]:
-    """Return aggregate stats for every department, including top 5 professors and top tags."""
+    """Return aggregate stats for every department (canonical = merged duplicates), including top 5 professors and top tags."""
     conn = get_connection()
 
-    dept_rows = conn.execute(
-        """SELECT department,
+    raw_rows = conn.execute(
+        "SELECT DISTINCT department FROM professors WHERE department != 'Unknown'"
+    ).fetchall()
+    raw_list = [r["department"] for r in raw_rows]
+    by_key: dict[str, list[str]] = defaultdict(list)
+    for raw in raw_list:
+        by_key[_normalize_department_key(raw)].append(raw)
+    # canonical name -> list of raw department values
+    canonical_to_raw = {_pick_canonical_display(v): v for v in by_key.values()}
+
+    departments = []
+    for canonical_name, raw_depts in sorted(canonical_to_raw.items()):
+        placeholders = ",".join("?" * len(raw_depts))
+
+        agg = conn.execute(
+            f"""SELECT
                   COUNT(*) as professor_count,
                   AVG(avg_rating) as avg_rating,
                   AVG(avg_difficulty) as avg_difficulty,
                   AVG(CASE WHEN would_take_again_pct >= 0 THEN would_take_again_pct END) as avg_wta,
                   SUM(num_ratings) as total_reviews
            FROM professors
-           WHERE department != 'Unknown' AND num_ratings >= 1
-           GROUP BY department
-           ORDER BY avg_rating DESC"""
-    ).fetchall()
-
-    departments = []
-    for dr in dept_rows:
-        dept_name = dr["department"]
+           WHERE department IN ({placeholders}) AND num_ratings >= 1""",
+            raw_depts,
+        ).fetchone()
 
         top_rows = conn.execute(
-            """SELECT rmp_id, first_name, last_name, avg_rating, avg_difficulty,
+            f"""SELECT rmp_id, first_name, last_name, avg_rating, avg_difficulty,
                       would_take_again_pct, num_ratings, tags,
                       CASE WHEN num_ratings > 0 AND avg_rating > 0 AND would_take_again_pct >= 0
                       THEN (avg_rating / 5.0) * 0.4
@@ -260,9 +348,9 @@ def get_department_stats() -> list[dict]:
                       ELSE 0
                       END AS weighted_score
                FROM professors
-               WHERE department = ? AND num_ratings >= 3
+               WHERE department IN ({placeholders}) AND num_ratings >= 3
                ORDER BY weighted_score DESC LIMIT 5""",
-            (dept_name,),
+            raw_depts,
         ).fetchall()
 
         top_professors = []
@@ -280,8 +368,8 @@ def get_department_stats() -> list[dict]:
             })
 
         tag_rows = conn.execute(
-            "SELECT tags FROM professors WHERE department = ? AND num_ratings >= 1 AND tags != '[]'",
-            (dept_name,),
+            f"SELECT tags FROM professors WHERE department IN ({placeholders}) AND num_ratings >= 1 AND tags != '[]'",
+            raw_depts,
         ).fetchall()
 
         tag_counts: dict[str, int] = {}
@@ -300,16 +388,18 @@ def get_department_stats() -> list[dict]:
         top_tags = [{"name": n, "count": c} for n, c in top_tags]
 
         departments.append({
-            "name": dept_name,
-            "professor_count": dr["professor_count"],
-            "avg_rating": round(dr["avg_rating"], 2) if dr["avg_rating"] else 0,
-            "avg_difficulty": round(dr["avg_difficulty"], 2) if dr["avg_difficulty"] else 0,
-            "avg_wta": round(dr["avg_wta"], 1) if dr["avg_wta"] else None,
-            "total_reviews": dr["total_reviews"] or 0,
+            "name": canonical_name,
+            "professor_count": agg["professor_count"] or 0,
+            "avg_rating": round(agg["avg_rating"], 2) if agg["avg_rating"] else 0,
+            "avg_difficulty": round(agg["avg_difficulty"], 2) if agg["avg_difficulty"] else 0,
+            "avg_wta": round(agg["avg_wta"], 1) if agg["avg_wta"] else None,
+            "total_reviews": agg["total_reviews"] or 0,
             "top_professors": top_professors,
             "top_tags": top_tags,
         })
 
+    # Sort by avg_rating descending
+    departments.sort(key=lambda d: d["avg_rating"], reverse=True)
     conn.close()
     return departments
 
@@ -338,7 +428,7 @@ def get_stats() -> dict:
     ).fetchone()
 
     last_scraped = get_last_scraped()
-
+    raw_to_canonical = _raw_to_canonical_map(conn)
     conn.close()
 
     return {
@@ -346,12 +436,12 @@ def get_stats() -> dict:
         "rated_professors": rated,
         "avg_quality": round(avg_quality, 2) if avg_quality else None,
         "hardest_department": {
-            "name": hardest_dept["department"],
+            "name": raw_to_canonical.get(hardest_dept["department"], hardest_dept["department"]),
             "avg_difficulty": round(hardest_dept["avg_diff"], 2),
         } if hardest_dept else None,
         "hardest_professor": {
             "name": f"{hardest_prof['first_name']} {hardest_prof['last_name']}",
-            "department": hardest_prof["department"],
+            "department": raw_to_canonical.get(hardest_prof["department"], hardest_prof["department"]),
             "avg_difficulty": hardest_prof["avg_difficulty"],
             "num_ratings": hardest_prof["num_ratings"],
         } if hardest_prof else None,
